@@ -1,7 +1,6 @@
 #!/usr/bin/env ruby
 require 'pathname'
 require 'open3'
-require 'colored'
 
 SPARKLE_MIN_VERSION = Gem::Version.new('1.13.1')
 
@@ -103,6 +102,20 @@ class App
     else
       :unknown
     end
+  end
+end
+
+class String
+  def green
+    "\033[0;32m#{self}\e[0m"
+  end
+
+  def yellow
+    "\033[0;33m#{self}\e[0m"
+  end
+
+  def red
+    "\033[0;31m#{self}\e[0m"
   end
 end
 
