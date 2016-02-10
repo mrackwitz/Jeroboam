@@ -1,0 +1,168 @@
+#!/usr/bin/env ruby
+require 'pathname'
+require 'open3'
+require 'colored'
+
+SPARKLE_MIN_VERSION = Gem::Version.new('1.13.1')
+
+class PlistBuddy
+  BIN = '/usr/libexec/PlistBuddy'.freeze
+  
+  class KeyNotFound < StandardError
+  end
+  
+  def self.exec(path, command)
+    out, status = Open3.capture2e("#{BIN} -c \"#{command}\" \"#{path}\"")
+    out = out.chomp
+    unless status.success?
+      if out =~ /Does Not Exist$/
+        raise KeyNotFound, out
+      else
+        raise out
+      end
+    end
+    out
+  end
+
+  def self.read(path, keypath)
+    keypath = keypath.join(':') if keypath.is_a?(Array)
+    exec(path, "Print :#{keypath}")
+  end
+end
+
+class App
+  def self.system_apps
+    Pathname.glob('/Applications/**.app').map { |path| App.new(path) }
+  end
+  
+  def self.user_apps
+    Pathname.glob('/Users/*/Applications/**.app').map { |path| App.new(path) }
+  end
+  
+  attr_reader :path
+  
+  def initialize(path)
+    @path = path
+  end
+  
+  def sparke_framework_path
+    path + 'Contents/Frameworks/Sparkle.framework'
+  end
+  
+  def binary_path
+    path + 'Contents/MacOS' + path.basename('.app')
+  end
+  
+  def uses_sparkle?
+    File.exist?(sparke_framework_path)
+  end
+  
+  def sparkle_version
+    @sparkle_version ||= PlistBuddy.read(path + 'Contents/Frameworks/Sparkle.framework/Versions/Current/Resources/Info.plist', :CFBundleShortVersionString)
+  end
+  
+  def allows_arbitrary_loads?
+    @allows_arbitrary_loads ||= PlistBuddy.read(path + 'Contents/Info.plist', [:NSAppTransportSecurity, :NSAllowsArbitraryLoads]) rescue false
+  end
+  
+  def transport_security_exception_domains
+    @transport_security_exception_domains ||= PlistBuddy.read(path + 'Contents/Info.plist', [:NSAppTransportSecurity, :NSExceptionDomains]) rescue ''
+  end
+  
+  def has_insecure_exceptions?
+    @has_insecure_exceptions ||= !!(@transport_security_exception_domains =~ /NS(ThirdParty)?ExceptionAllowsInsecureHTTPLoads = false/)
+  end
+  
+  def sparkle_feed_url
+    @sparkle_feed_url ||= PlistBuddy.read(path + 'Contents/Info.plist', :SUFeedURL) rescue nil
+  end
+  
+  def exposes_feed_url?
+    !sparkle_feed_url.nil?
+  end
+  
+  def uses_insecure_feed_url?
+    @uses_insecure_feed_url ||= !!(sparkle_feed_url =~ /^http\:/) if exposes_feed_url?
+  end
+  
+  def insecure_urls_in_executable
+    @insecure_urls_in_executable ||= `strings #{binary_path} | grep -C0 --color=no -e "^http:"`.chomp.split("\n")
+  end
+  
+  def has_insecure_urls_in_executable?
+    !insecure_urls_in_executable.empty?
+  end
+  
+  def risk_classification
+    @risk_classification ||= if uses_insecure_feed_url?
+      if allows_arbitrary_loads? || has_insecure_exceptions?
+        :danger
+      else
+        :broken_updater
+      end
+    else
+      :unknown
+    end
+  end
+end
+
+puts "Analyze …"
+
+apps = App.system_apps + App.user_apps
+sparkle_updated_apps = apps.select(&:uses_sparkle?)
+outdated_apps = sparkle_updated_apps.select do |app|
+  parseable_version, _ = app.sparkle_version.split(' ')
+  Gem::Version.new(parseable_version) < SPARKLE_MIN_VERSION
+end
+potential_vulnerable_apps = outdated_apps.select do |app|
+  app.uses_insecure_feed_url? || (!app.exposes_feed_url? && (app.allows_arbitrary_loads? || app.has_insecure_exceptions?))
+end
+
+puts "Report:"
+puts "Examined #{apps.count} apps of which #{sparkle_updated_apps.count} are updated via Sparkle.".green
+puts "#{outdated_apps.count} apps use an outdated version of Sparkle, which doesn't include the checked security patch.".yellow
+puts "The following #{potential_vulnerable_apps.count} apps are potentially vulnerable:".red
+puts
+
+risk_classification_order = [:danger, :unknown, :broken_updater]
+grouped_apps = potential_vulnerable_apps.group_by(&:risk_classification)
+risk_classification_order.each do |risk_classification|
+  grouped_apps[risk_classification].each do |app|
+    puts "* #{app.path.basename}"
+    puts "  Sparkle Version: #{app.sparkle_version}"
+
+    if app.allows_arbitrary_loads?
+      puts "  ✗ Allows arbitrary loads".red
+    else 
+      puts "  ✓ Doesn't allow arbitrary loads".green
+    end
+    if app.has_insecure_exceptions?
+      puts "  ✗ Has insecure ATS exceptions:".red
+      puts "      " + app.transport_security_exception_domains.split("\n").join("\n      ")
+    else 
+      puts "  ✓ Doesn't have insecure ATS exceptions".green
+    end
+    case app.uses_insecure_feed_url?
+      when true  then puts "  ✗ Uses an insecure Feed URL".red
+      when false then puts "  ✓ Uses a secure Feed URL".green
+      when nil   then
+        puts "  ? Doesn't expose the Feed URL".yellow
+        if app.has_insecure_urls_in_executable?
+          puts "  ✗ Has insecure URLs in its executable:".red
+          puts "      " + app.insecure_urls_in_executable.join("\n      ")
+          puts "    If any of these URLs provides the appcast, then this app is vulnerable."
+        else 
+          puts "  ✓ Doesn't have any insecure URLs in its executable".green
+        end
+    end
+
+    classification = case app.risk_classification
+      when :danger         then 'IMMINENT DANGER'.red
+      when :broken_updater then 'BROKEN UPDATER'.yellow
+      when :unknown        then 'UNKNOWN'.yellow
+    end
+    puts "  Risk classification: #{classification}"
+    
+    puts
+  end
+end
