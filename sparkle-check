@@ -240,6 +240,7 @@ grouped_apps = potential_vulnerable_apps.group_by(&:risk_classification)
   grouped_apps[risk_classification].each do |app|
     puts "* #{app.path.basename}"
     puts "  Sparkle Version: #{app.sparkle_version}"
+    puts "  Feed URL: #{app.sparkle_feed_url}" if app.exposes_feed_url?
 
     if !app.ats_enabled?
       puts "  ✗ ATS is not active".red
