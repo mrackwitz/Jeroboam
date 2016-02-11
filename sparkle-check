@@ -14,8 +14,9 @@
 # version of Sparkle, which isn't vulnerable or avoids using unencrypted
 # HTTP connections for retrieving the AppCast, as strongly encouraged by
 # Sparkle's documentation.
-# Alternative countermeasures may range from restricting the apps network
-# functionalities to putting the app under quarantine.
+# Alternative countermeasures may range from disabling auto-updates and not
+# using the updater anymore, over restricting the app's network functionalities
+# to putting the app under quarantine.
 #
 # *UNKNOWN*: the app was compiled against an older SDK, so that [ATS][2] is not
 # active or there are exclusions from ATS, while the feed URL for the AppCast
