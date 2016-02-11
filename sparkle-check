@@ -190,8 +190,10 @@ class App
       else
         :broken_updater
       end
-    else
+    elsif !exposes_feed_url? && allows_insecure_access?
       :unknown
+    else
+      :unaffected
     end
   end
 end
@@ -270,6 +272,7 @@ risk_classification_order.each do |risk_classification|
       when :danger         then 'IMMINENT DANGER'.red
       when :broken_updater then 'BROKEN UPDATER'.yellow
       when :unknown        then 'UNKNOWN'.yellow
+      when :unaffected     then 'UNAFFECTED'.green
     end
     puts "  Risk classification: #{classification}"
     
