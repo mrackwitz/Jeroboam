@@ -236,6 +236,7 @@ end
 
 grouped_apps = potential_vulnerable_apps.group_by(&:risk_classification)
 [:danger, :unknown, :broken_updater].each do |risk_classification|
+  next unless grouped_apps[risk_classification]
   grouped_apps[risk_classification].each do |app|
     puts "* #{app.path.basename}"
     puts "  Sparkle Version: #{app.sparkle_version}"
