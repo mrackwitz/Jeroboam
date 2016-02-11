@@ -40,6 +40,7 @@ require 'pathname'
 require 'open3'
 
 SPARKLE_MIN_VERSION = Gem::Version.new('1.13.1')
+APPKIT_MIN_VERSION = Gem::Version.new('1347.0.0') # TODO: Check this value
 
 class PlistBuddy
   BIN = '/usr/libexec/PlistBuddy'.freeze
@@ -125,6 +126,27 @@ class App
     @uses_insecure_feed_url ||= !!(sparkle_feed_url =~ /^http\:/) if exposes_feed_url?
   end
   
+  def linked_against_appkit_version
+    @linked_against_foundation_version ||= begin
+      out = `otool -l "#{executable_path}" | grep --color=no -A2 AppKit.framework | tail -n1`
+      matches = out.match(/current version\s+([0-9.]+)/)
+      if matches.nil?
+        nil
+      else
+        version = matches[1]
+        Gem::Version.new(version)
+      end
+    end
+  end
+  
+  def ats_enabled?
+    @ats_enabled ||= linked_against_appkit_version != nil && linked_against_appkit_version > APPKIT_MIN_VERSION
+  end
+  
+  def allows_insecure_access?
+    !ats_enabled? || allows_arbitrary_loads? || has_insecure_exceptions?
+  end
+  
   def insecure_urls_in_executable
     @insecure_urls_in_executable ||= `strings #{binary_path} | grep -C0 --color=no -e "^http:"`.chomp.split("\n")
   end
@@ -135,7 +157,7 @@ class App
   
   def risk_classification
     @risk_classification ||= if uses_insecure_feed_url?
-      if allows_arbitrary_loads? || has_insecure_exceptions?
+      if allows_insecure_access?
         :danger
       else
         :broken_updater
@@ -169,7 +191,7 @@ outdated_apps = sparkle_updated_apps.select do |app|
   Gem::Version.new(parseable_version) < SPARKLE_MIN_VERSION
 end
 potential_vulnerable_apps = outdated_apps.select do |app|
-  app.uses_insecure_feed_url? || (!app.exposes_feed_url? && (app.allows_arbitrary_loads? || app.has_insecure_exceptions?))
+  app.uses_insecure_feed_url? || (!app.exposes_feed_url? && app.allows_insecure_access?)
 end
 
 puts "Report:"
@@ -185,17 +207,23 @@ risk_classification_order.each do |risk_classification|
     puts "* #{app.path.basename}"
     puts "  Sparkle Version: #{app.sparkle_version}"
 
-    if app.allows_arbitrary_loads?
-      puts "  ✗ Allows arbitrary loads".red
-    else 
-      puts "  ✓ Doesn't allow arbitrary loads".green
+    if !app.ats_enabled?
+      puts "  ✗ ATS is not active".red
+    else
+      puts "  ✓ ATS is active".green
+      if app.allows_arbitrary_loads?
+        puts "  ✗ Allows arbitrary loads".red
+      else 
+        puts "  ✓ Doesn't allow arbitrary loads".green
+      end
+      if app.has_insecure_exceptions?
+        puts "  ✗ Has insecure ATS exceptions:".red
+        puts "      " + app.transport_security_exception_domains.split("\n").join("\n      ")
+      else 
+        puts "  ✓ Doesn't have insecure ATS exceptions".green
+      end
     end
-    if app.has_insecure_exceptions?
-      puts "  ✗ Has insecure ATS exceptions:".red
-      puts "      " + app.transport_security_exception_domains.split("\n").join("\n      ")
-    else 
-      puts "  ✓ Doesn't have insecure ATS exceptions".green
-    end
+    
     case app.uses_insecure_feed_url?
       when true  then puts "  ✗ Uses an insecure Feed URL".red
       when false then puts "  ✓ Uses a secure Feed URL".green
