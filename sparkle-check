@@ -40,7 +40,7 @@ require 'pathname'
 require 'open3'
 
 SPARKLE_MIN_VERSION = Gem::Version.new('1.13.1')
-APPKIT_MIN_VERSION = Gem::Version.new('1347.0.0') # TODO: Check this value
+ATS_MIN_SDK_MAJOR = 15.freeze
 
 class PlistBuddy
   BIN = '/usr/libexec/PlistBuddy'.freeze
@@ -154,21 +154,12 @@ class App
     @uses_insecure_feed_url ||= !!(sparkle_feed_url =~ /^http\:/) if exposes_feed_url?
   end
   
-  def linked_against_appkit_version
-    @linked_against_foundation_version ||= begin
-      out = `otool -l "#{executable_path}" | grep --color=no -A2 AppKit.framework | tail -n1`
-      matches = out.match(/current version\s+([0-9.]+)/)
-      if matches.nil?
-        nil
-      else
-        version = matches[1]
-        Gem::Version.new(version)
-      end
-    end
+  def sdk_build
+    @sdk_build ||= PlistBuddy.read(info_plist_path, :DTSDKBuild) rescue ''
   end
   
   def ats_enabled?
-    @ats_enabled ||= linked_against_appkit_version != nil && linked_against_appkit_version > APPKIT_MIN_VERSION
+    @ats_enabled ||= sdk_build.split(/[a-z]/i).first.to_i >= ATS_MIN_SDK_MAJOR
   end
   
   def allows_insecure_access?
