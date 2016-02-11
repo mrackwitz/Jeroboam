@@ -166,12 +166,12 @@ class App
     !ats_enabled? || allows_arbitrary_loads? || has_insecure_exceptions?
   end
   
-  def insecure_urls_in_executable
-    @insecure_urls_in_executable ||= `strings #{executable_path} | grep -C0 --color=no -e "^http:"`.chomp.split("\n")
+  def urls_in_executable
+    @urls_in_executable ||= `strings #{executable_path} | grep -C0 --color=no -E "^https?:"`.chomp.split("\n")
   end
   
-  def has_insecure_urls_in_executable?
-    !insecure_urls_in_executable.empty?
+  def insecure_urls_in_executable
+    @insecure_urls_in_executable ||= urls_in_executable.select { |url| url =~ /^http:/ }
   end
   
   def risk_classification
@@ -255,7 +255,7 @@ grouped_apps = potential_vulnerable_apps.group_by(&:risk_classification)
       when false then puts "  ✓ Uses a secure Feed URL".green
       when nil   then
         puts "  ℹ Doesn't expose the Feed URL".yellow
-        if app.has_insecure_urls_in_executable?
+        unless app.insecure_urls_in_executable.empty?
           puts "  ℹ Has insecure URLs in its executable:".yellow
           puts "      " + app.insecure_urls_in_executable.join("\n      ")
           puts "    If any of these URLs provides the appcast, then this app is vulnerable."
