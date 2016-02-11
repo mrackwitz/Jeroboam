@@ -256,9 +256,9 @@ risk_classification_order.each do |risk_classification|
       when true  then puts "  ✗ Uses an insecure Feed URL".red
       when false then puts "  ✓ Uses a secure Feed URL".green
       when nil   then
-        puts "  ? Doesn't expose the Feed URL".yellow
+        puts "  ℹ Doesn't expose the Feed URL".yellow
         if app.has_insecure_urls_in_executable?
-          puts "  ✗ Has insecure URLs in its executable:".red
+          puts "  ℹ Has insecure URLs in its executable:".yellow
           puts "      " + app.insecure_urls_in_executable.join("\n      ")
           puts "    If any of these URLs provides the appcast, then this app is vulnerable."
         else 
