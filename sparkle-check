@@ -215,7 +215,7 @@ outdated_apps = sparkle_updated_apps.select do |app|
   Gem::Version.new(parseable_version) < SPARKLE_MIN_VERSION
 end
 grouped_apps = outdated_apps.group_by(&:risk_classification)
-potential_vulnerable_apps = outdated_apps - grouped_apps[:unaffected]
+potential_vulnerable_apps = outdated_apps - (grouped_apps[:unaffected] || [])
 
 puts "Report:"
 puts "Examined #{apps.count} apps of which #{sparkle_updated_apps.count} are updated via Sparkle.".green
