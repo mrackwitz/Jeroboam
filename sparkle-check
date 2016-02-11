@@ -86,6 +86,18 @@ class App
     path + 'Contents/Info.plist'
   end
   
+  def bundle_identifier
+    @bundle_identifier ||= PlistBuddy.read(info_plist_path, :CFBundleIdentifier)
+  end
+  
+  def user_defaults_path
+    Pathname('~/Library/Preferences') + "#{bundle_identifier}.plist"
+  end
+  
+  def synced_user_defaults_path
+    Pathname('~/Library/SyncedPreferences') + "#{bundle_identifier}.plist"
+  end
+  
   def sparke_framework_path
     path + 'Contents/Frameworks/Sparkle.framework'
   end
@@ -119,7 +131,19 @@ class App
   end
   
   def sparkle_feed_url
-    @sparkle_feed_url ||= PlistBuddy.read(path + 'Contents/Info.plist', :SUFeedURL) rescue nil
+    return @sparkle_feed_url if defined?(@sparkle_feed_url)
+    @sparkle_feed_url = read_feed_url_from_path(synced_user_defaults_path)
+    @sparkle_feed_url ||= read_feed_url_from_path(user_defaults_path)
+    @sparkle_feed_url ||= read_feed_url_from_path(info_plist_path)
+  end
+  
+  def read_feed_url_from_path(path)
+    return nil unless path.exist?
+    value = PlistBuddy.read(path, :SUFeedURL)
+    return nil if value.empty? || value == 'NULL'
+    value
+  rescue PlistBuddy::KeyNotFound
+    nil
   end
   
   def exposes_feed_url?
