@@ -81,6 +81,10 @@ class App
     @path = path
   end
   
+  def info_plist_path
+    path + 'Contents/Info.plist'
+  end
+  
   def sparke_framework_path
     path + 'Contents/Frameworks/Sparkle.framework'
   end
@@ -98,11 +102,11 @@ class App
   end
   
   def allows_arbitrary_loads?
-    @allows_arbitrary_loads ||= PlistBuddy.read(path + 'Contents/Info.plist', [:NSAppTransportSecurity, :NSAllowsArbitraryLoads]) rescue false
+    @allows_arbitrary_loads ||= PlistBuddy.read(info_plist_path, [:NSAppTransportSecurity, :NSAllowsArbitraryLoads]) rescue false
   end
   
   def transport_security_exception_domains
-    @transport_security_exception_domains ||= PlistBuddy.read(path + 'Contents/Info.plist', [:NSAppTransportSecurity, :NSExceptionDomains]) rescue ''
+    @transport_security_exception_domains ||= PlistBuddy.read(info_plist_path, [:NSAppTransportSecurity, :NSExceptionDomains]) rescue ''
   end
   
   def has_insecure_exceptions?
