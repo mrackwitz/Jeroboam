@@ -90,8 +90,12 @@ class App
     path + 'Contents/Frameworks/Sparkle.framework'
   end
   
-  def binary_path
-    path + 'Contents/MacOS' + path.basename('.app')
+  def executable_name
+    @executable_name ||= PlistBuddy.read(info_plist_path, :CFBundleExecutable)
+  end
+  
+  def executable_path
+    @executable_path ||= path + 'Contents/MacOS' + executable_name
   end
   
   def uses_sparkle?
@@ -148,7 +152,7 @@ class App
   end
   
   def insecure_urls_in_executable
-    @insecure_urls_in_executable ||= `strings #{binary_path} | grep -C0 --color=no -e "^http:"`.chomp.split("\n")
+    @insecure_urls_in_executable ||= `strings #{executable_path} | grep -C0 --color=no -e "^http:"`.chomp.split("\n")
   end
   
   def has_insecure_urls_in_executable?
