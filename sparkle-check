@@ -156,11 +156,12 @@ class App
   end
   
   def sdk_build
-    @sdk_build ||= PlistBuddy.read(info_plist_path, :DTSDKBuild) rescue ''
+    @sdk_build ||= PlistBuddy.read(info_plist_path, :DTSDKBuild) rescue nil
   end
   
   def ats_enabled?
-    @ats_enabled ||= sdk_build.split(/[a-z]/i).first.to_i >= ATS_MIN_SDK_MAJOR
+    return @ats_enabled if defined?(@ats_enabled)
+    @ats_enabled ||= sdk_build.nil? ? false : sdk_build.split(/[a-z]/i).first.to_i >= ATS_MIN_SDK_MAJOR
   end
   
   def allows_insecure_access?
