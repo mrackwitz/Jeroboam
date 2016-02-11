@@ -115,7 +115,8 @@ class App
   end
   
   def sparkle_version
-    @sparkle_version ||= PlistBuddy.read(path + 'Contents/Frameworks/Sparkle.framework/Versions/Current/Resources/Info.plist', :CFBundleShortVersionString)
+    return @sparkle_version if defined?(@sparkle_version)
+    @sparkle_version ||= PlistBuddy.read(path + 'Contents/Frameworks/Sparkle.framework/Versions/Current/Resources/Info.plist', :CFBundleShortVersionString) rescue nil
   end
   
   def allows_arbitrary_loads?
@@ -208,6 +209,7 @@ puts "Analyze …"
 apps = App.system_apps + App.user_apps
 sparkle_updated_apps = apps.select(&:uses_sparkle?)
 outdated_apps = sparkle_updated_apps.select do |app|
+  next true if app.sparkle_version.nil?
   parseable_version, _ = app.sparkle_version.split(' ')
   Gem::Version.new(parseable_version) < SPARKLE_MIN_VERSION
 end
@@ -229,7 +231,7 @@ grouped_apps = potential_vulnerable_apps.group_by(&:risk_classification)
   next unless grouped_apps[risk_classification]
   grouped_apps[risk_classification].each do |app|
     puts "* #{app.path.basename}"
-    puts "  Sparkle Version: #{app.sparkle_version}"
+    puts "  Sparkle Version: '#{app.sparkle_version}'"
     puts "  Feed URL: #{app.sparkle_feed_url}" if app.exposes_feed_url?
 
     if !app.ats_enabled?
