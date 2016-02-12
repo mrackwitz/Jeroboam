@@ -170,7 +170,7 @@ class App
   end
   
   def urls_in_executable
-    @urls_in_executable ||= `strings #{executable_path} | grep -C0 --color=no -E "^https?:"`.chomp.split("\n")
+    @urls_in_executable ||= `strings "#{executable_path}" | grep -C0 --color=no -E "^https?:"`.chomp.split("\n")
   end
   
   def insecure_urls_in_executable
