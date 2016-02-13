@@ -144,7 +144,13 @@ class App
   end
   
   def uses_insecure_feed_url?
-    @uses_insecure_feed_url ||= !!(sparkle_feed_url =~ /^http\:/) if exposes_feed_url?
+    @uses_insecure_feed_url ||= begin
+      if exposes_feed_url?
+        !!(sparkle_feed_url =~ /^http\:/)
+      elsif !insecure_feed_urls_in_executable.empty?
+        true
+      end
+    end
   end
   
   def sdk_build
@@ -168,6 +174,13 @@ class App
     @insecure_urls_in_executable ||= urls_in_executable.select { |url| url =~ /^http:/ }
   end
   
+  def insecure_feed_urls_in_executable
+    return @insecure_feed_url_in_executable unless @insecure_feed_url_in_executable.nil?
+    @insecure_feed_url_in_executable = begin
+      insecure_urls_in_executable.select { |url| url =~ /(update|changelog|appcast)/ }
+    end
+  end
+
   def risk_classification
     @risk_classification ||= if uses_insecure_feed_url?
       if allows_insecure_access?
@@ -251,8 +264,15 @@ grouped_apps = potential_vulnerable_apps.group_by(&:risk_classification)
     end
     
     case app.uses_insecure_feed_url?
-      when true  then puts "  ✗ Uses an insecure Feed URL".red
-      when false then puts "  ✓ Uses a secure Feed URL".green
+      when true  then
+        puts "  ✗ Uses an insecure Feed URL".red
+        unless app.exposes_feed_url? && app.insecure_feed_urls_in_executable.empty?
+          puts "    as indicated by the URLs found in the executable:".red
+          puts "      " + app.insecure_feed_urls_in_executable.join("\n      ")
+          puts "    ℹ This heuristic can yield false-positives.".yellow
+        end
+      when false then
+        puts "  ✓ Uses a secure Feed URL".green
       when nil   then
         puts "  ℹ Doesn't expose the Feed URL".yellow
         unless app.insecure_urls_in_executable.empty?
