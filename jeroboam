@@ -78,6 +78,10 @@ class App
     @bundle_identifier ||= PlistBuddy.read(info_plist_path, :CFBundleIdentifier)
   end
   
+  def version
+    @version ||= PlistBuddy.read(info_plist_path, :CFBundleShortVersionString) rescue ''
+  end
+  
   def user_defaults_path
     Pathname('~/Library/Preferences') + "#{bundle_identifier}.plist"
   end
@@ -223,6 +227,7 @@ grouped_apps = potential_vulnerable_apps.group_by(&:risk_classification)
   next unless grouped_apps[risk_classification]
   grouped_apps[risk_classification].each do |app|
     puts "* #{app.path.basename}"
+    puts "  Version: #{app.version}"
     puts "  Sparkle Version: '#{app.sparkle_version}'"
     puts "  Feed URL: #{app.sparkle_feed_url}" if app.exposes_feed_url?
 
