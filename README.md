@@ -40,6 +40,17 @@ classifications may take the following values:
 
 ## Usage
 
+```
+curl -sSLO https://raw.githubusercontent.com/mrackwitz/Jeroboam/master/jeroboam
+less jeroboam
+./jeroboam
+```
+
+While you could theoretically just pipe the raw contents of the executable into
+your Ruby interpreter as seen below, this is not a fail-proof concept.
+So the recommended way would be as seen above: download the script and run it
+not before you made sure yourself that everything is alright.
+
 ```shell
 > curl -sSL https://raw.githubusercontent.com/mrackwitz/jeroboam/master/jeroboam | ruby
 ```
