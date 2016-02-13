@@ -1,9 +1,24 @@
 #!/usr/bin/env ruby
 require 'pathname'
 require 'open3'
+require 'singleton'
 
 SPARKLE_MIN_VERSION = Gem::Version.new('1.13.1')
 ATS_MIN_SDK_MAJOR = 15.freeze
+
+class System
+  include Singleton
+  
+  def build_version
+    out = `sw_vers`
+    version = out.match(/BuildVersion:\s+([A-Z0-9]+)/)[1]
+    version.split(/[a-z]/i).first.to_i
+  end
+  
+  def ats_available?
+    build_version >= ATS_MIN_SDK_MAJOR
+  end
+end
 
 class PlistBuddy
   BIN = '/usr/libexec/PlistBuddy'.freeze
@@ -138,7 +153,7 @@ class App
   end
   
   def allows_insecure_access?
-    !ats_enabled? || allows_arbitrary_loads? || has_insecure_exceptions?
+    !System.instance.ats_available? || !ats_enabled? || allows_arbitrary_loads? || has_insecure_exceptions?
   end
   
   def urls_in_executable
@@ -193,6 +208,9 @@ potential_vulnerable_apps = outdated_apps - (grouped_apps[:unaffected] || [])
 puts "Report:"
 puts "Examined #{apps.count} apps and preference panes of which #{sparkle_updated_apps.count} are updated via Sparkle.".green
 puts "#{outdated_apps.count} of these use outdated versions of Sparkle, which don't include the checked security patch.".yellow
+if !System.instance.ats_available?
+  puts "ℹ ATS is not available on your OS version.".yellow
+end
 if potential_vulnerable_apps.count > 0
   puts "The following #{potential_vulnerable_apps.count} of these are potentially vulnerable:".red
   puts
@@ -208,7 +226,9 @@ grouped_apps = potential_vulnerable_apps.group_by(&:risk_classification)
     puts "  Sparkle Version: '#{app.sparkle_version}'"
     puts "  Feed URL: #{app.sparkle_feed_url}" if app.exposes_feed_url?
 
-    if !app.ats_enabled?
+    if !System.instance.ats_available?
+      # This is shown once in the beginning and not per app.
+    elsif !app.ats_enabled?
       puts "  ✗ ATS is not active".red
     else
       puts "  ✓ ATS is active".green
