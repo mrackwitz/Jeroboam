@@ -77,6 +77,16 @@ class App
     Pathname.glob('/Users/*/Applications/**.app').map { |path| App.new(path) }
   end
   
+  def self.preference_panes
+    %w(
+      /Users/*/Library/PreferencePanes
+      /System/Library/PreferencePanes
+      /Library/PreferencePanes
+    ).flat_map do |dir|
+      Pathname.glob("#{dir}/*.prefPane").map { |path| App.new(path) }
+    end
+  end
+  
   attr_reader :path
   
   def initialize(path)
@@ -208,7 +218,7 @@ end
 
 puts "Analyze …"
 
-apps = App.system_apps + App.user_apps
+apps = App.system_apps + App.user_apps + App.preference_panes
 sparkle_updated_apps = apps.select(&:uses_sparkle?)
 outdated_apps = sparkle_updated_apps.select do |app|
   next true if app.sparkle_version.nil?
@@ -219,10 +229,10 @@ grouped_apps = outdated_apps.group_by(&:risk_classification)
 potential_vulnerable_apps = outdated_apps - (grouped_apps[:unaffected] || [])
 
 puts "Report:"
-puts "Examined #{apps.count} apps of which #{sparkle_updated_apps.count} are updated via Sparkle.".green
-puts "#{outdated_apps.count} apps use outdated versions of Sparkle, which don't include the checked security patch.".yellow
+puts "Examined #{apps.count} apps and preference panes of which #{sparkle_updated_apps.count} are updated via Sparkle.".green
+puts "#{outdated_apps.count} of these use outdated versions of Sparkle, which don't include the checked security patch.".yellow
 if potential_vulnerable_apps.count > 0
-  puts "The following #{potential_vulnerable_apps.count} apps are potentially vulnerable:".red
+  puts "The following #{potential_vulnerable_apps.count} of these are potentially vulnerable:".red
   puts
 else
   puts 'No potentially vulnerable apps were detected. 🎉'.green
