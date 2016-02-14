@@ -266,7 +266,7 @@ grouped_apps = potential_vulnerable_apps.group_by(&:risk_classification)
     case app.uses_insecure_feed_url?
       when true  then
         puts "  ✗ Uses an insecure Feed URL".red
-        unless app.exposes_feed_url? && app.insecure_feed_urls_in_executable.empty?
+        unless app.exposes_feed_url?
           puts "    as indicated by the URLs found in the executable:".red
           puts "      " + app.insecure_feed_urls_in_executable.join("\n      ")
           puts "    ℹ This heuristic can yield false-positives.".yellow
