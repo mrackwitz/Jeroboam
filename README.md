@@ -43,7 +43,7 @@ classifications may take the following values:
 ```
 curl -sSLO https://raw.githubusercontent.com/mrackwitz/Jeroboam/master/jeroboam
 less jeroboam
-./jeroboam
+ruby jeroboam
 ```
 
 While you could theoretically just pipe the raw contents of the executable into
