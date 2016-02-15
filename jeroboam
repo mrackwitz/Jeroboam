@@ -253,9 +253,24 @@ class String
   end
 end
 
+if ARGV.count == 1
+  app_path = Pathname(ARGV[0])
+  unless app_path.exist?
+    puts "The given path doesn't exist.".red
+    exit 1
+  end
+  app = App.new(app_path)
+  unless app.info_plist_path.exist?
+    puts "Can't find a valid app at the given path".red
+    exit 1
+  end
+  apps = [App.new(app_path)]
+else
+  apps = App.system_apps + App.user_apps + App.preference_panes
+end
+
 puts "Analyze …"
 
-apps = App.system_apps + App.user_apps + App.preference_panes
 sparkle_updated_apps = apps.select(&:uses_sparkle?)
 outdated_apps = sparkle_updated_apps.select(&:is_sparkle_outdated?)
 grouped_apps = outdated_apps.group_by(&:risk_classification)
