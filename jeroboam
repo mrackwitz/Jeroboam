@@ -114,6 +114,14 @@ class App
     @sparkle_version ||= PlistBuddy.read(path + 'Contents/Frameworks/Sparkle.framework/Versions/Current/Resources/Info.plist', :CFBundleShortVersionString) rescue nil
   end
   
+  def is_sparkle_outdated?
+    return true if sparkle_version.nil?
+    @is_sparkle_outdated ||= begin
+      parseable_version, _ = sparkle_version.split(' ')
+      Gem::Version.new(parseable_version) < SPARKLE_MIN_VERSION
+    end
+  end
+  
   def allows_arbitrary_loads?
     @allows_arbitrary_loads ||= PlistBuddy.read(info_plist_path, [:NSAppTransportSecurity, :NSAllowsArbitraryLoads]) rescue false
   end
@@ -249,11 +257,7 @@ puts "Analyze …"
 
 apps = App.system_apps + App.user_apps + App.preference_panes
 sparkle_updated_apps = apps.select(&:uses_sparkle?)
-outdated_apps = sparkle_updated_apps.select do |app|
-  next true if app.sparkle_version.nil?
-  parseable_version, _ = app.sparkle_version.split(' ')
-  Gem::Version.new(parseable_version) < SPARKLE_MIN_VERSION
-end
+outdated_apps = sparkle_updated_apps.select(&:is_sparkle_outdated?)
 grouped_apps = outdated_apps.group_by(&:risk_classification)
 potential_vulnerable_apps = outdated_apps - (grouped_apps[:unaffected] || [])
 
