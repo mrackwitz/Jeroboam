@@ -2,9 +2,12 @@
 require 'pathname'
 require 'open3'
 require 'singleton'
+require 'open-uri'
+require 'rexml/document'
 
 SPARKLE_MIN_VERSION = Gem::Version.new('1.13.1')
 ATS_MIN_SDK_MAJOR = 15.freeze
+CHECK_PAST_VERSIONS_IN_FEED = !ENV['CHECK_PAST_VERSIONS_IN_FEED'].to_i.zero? || false
 
 class System
   include Singleton
@@ -153,6 +156,38 @@ class App
     end
   end
   
+  def uses_insecure_elements?
+    uses_insecure_feed_url? || !insecure_release_notes_links_in_feed.empty?
+  end
+  
+  def insecure_release_notes_links_in_feed
+    @insecure_release_notes_links_in_feed ||= check_release_notes
+  end
+  
+  def check_release_notes
+    @error_while_checking_release_notes = nil
+    return [] unless exposes_feed_url?
+    puts "ℹ Check AppCast at #{sparkle_feed_url}."
+    body = open(sparkle_feed_url)
+    doc = REXML::Document.new(body)
+    REXML::XPath.each(doc.root, "//channel/item/sparkle:releaseNotesLink").select do |node|
+      next false unless node.text != nil && node.text =~ /^http\:/
+      next true if CHECK_PAST_VERSIONS_IN_FEED
+      enclosure_tag = node.parent.elements["enclosure"]
+      node_version = enclosure_tag.attributes["sparkle:shortVersionString"]
+      Gem::Version.new(node_version) > Gem::Version.new(self.version)
+    end.map(&:text)
+  rescue => error
+    puts "✗ Check failed with error: #{error}".red
+    @error_while_checking_release_notes = error
+    []
+  end
+  
+  def error_while_checking_release_notes
+    check_release_notes unless defined?(@error_while_checking_release_notes)
+    @error_while_checking_release_notes
+  end
+  
   def sdk_build
     @sdk_build ||= PlistBuddy.read(info_plist_path, :DTSDKBuild) rescue nil
   end
@@ -182,7 +217,7 @@ class App
   end
 
   def risk_classification
-    @risk_classification ||= if uses_insecure_feed_url?
+    @risk_classification ||= if uses_insecure_elements?
       if allows_insecure_access?
         :danger
       else
@@ -273,6 +308,13 @@ grouped_apps = potential_vulnerable_apps.group_by(&:risk_classification)
         end
       when false then
         puts "  ✓ Uses a secure Feed URL".green
+        if app.error_while_checking_release_notes != nil
+          puts "  ℹ Couldn't validate whether the are insecure elements in the AppFeed".yellow
+        elsif !app.insecure_release_notes_links_in_feed.empty?
+          puts "  ✗ Has links to insecure release notes in AppFeed:".red
+          puts "      " + app.insecure_release_notes_links_in_feed.join("\n      ")
+          puts "    ℹ This must be fixed on the server-side. Please note the developer to fix this issue.".red
+        end
       when nil   then
         puts "  ℹ Doesn't expose the Feed URL".yellow
         unless app.insecure_urls_in_executable.empty?
