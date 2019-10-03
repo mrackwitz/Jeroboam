@@ -118,6 +118,7 @@ class App
     return true if sparkle_version.nil?
     @is_sparkle_outdated ||= begin
       parseable_version, _ = sparkle_version.split(' ')
+      parseable_version.gsub!('##VERSION##', version) if parseable_version =~ /##VERSION##/
       Gem::Version.new(parseable_version) < SPARKLE_MIN_VERSION
     end
   end
