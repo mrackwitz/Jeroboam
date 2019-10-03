@@ -211,11 +211,12 @@ class App
   end
   
   def urls_in_executable
-    @urls_in_executable ||= `strings "#{executable_path}" | grep -C0 --color=never -E "^https?:"`.chomp.split("\n")
+    @urls_in_executable ||= `strings "#{executable_path}"`.chomp.split("\n")
+      .select { |s| s =~ /\Ahttps?:/ }
   end
   
   def insecure_urls_in_executable
-    @insecure_urls_in_executable ||= urls_in_executable.select { |url| url =~ /^http:/ }
+    @insecure_urls_in_executable ||= urls_in_executable.select { |url| url =~ /\Ahttp:/ }
   end
   
   def insecure_feed_urls_in_executable
